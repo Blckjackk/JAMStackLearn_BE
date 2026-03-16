@@ -1,0 +1,46 @@
+﻿using api_app.DTOs.Users;
+using api_app.Services.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+
+namespace api_app.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class UserController : ControllerBase
+    {
+        private readonly IUserService _userService;
+
+        public UserController(IUserService userService)
+        {
+            _userService = userService;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<IReadOnlyList<UserResponseDto>>> GetAll(CancellationToken cancellationToken)
+        {
+            var users = await _userService.GetAllAsync(cancellationToken);
+            return Ok(users);
+        }
+
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<UserResponseDto>> GetById(int id, CancellationToken cancellationToken)
+        {
+            var user = await _userService.GetByIdAsync(id, cancellationToken);
+            return user is null ? NotFound() : Ok(user);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<UserResponseDto>> Create([FromBody] CreateUserDto dto, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var created = await _userService.CreateAsync(dto, cancellationToken);
+                return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+    }
+}
