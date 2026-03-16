@@ -23,6 +23,40 @@ builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.SetIsOriginAllowed(origin =>
+              {
+                  if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+                  {
+                      return true;
+                  }
+
+                  if (origin.Equals("http://localhost:3000", StringComparison.OrdinalIgnoreCase) ||
+                  origin.Equals("http://localhost:4321", StringComparison.OrdinalIgnoreCase) ||
+                      origin.Equals("http://localhost:5173", StringComparison.OrdinalIgnoreCase))
+                  {
+                      return true;
+                  }
+
+
+                  if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                  {
+                      return false;
+                  }
+
+                  return uri.Host.EndsWith(".ngrok-free.dev", StringComparison.OrdinalIgnoreCase);
+              })
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -32,6 +66,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors();
 
 app.UseAuthorization();
 
