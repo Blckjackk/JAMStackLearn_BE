@@ -14,6 +14,28 @@ public class TagRepository : ITagRepository
         _connection = connection;
     }
 
+    public async Task<IReadOnlyList<Tag>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        var tags = new List<Tag>();
+
+        await using var conn = _connection.GetConnection();
+        await conn.OpenAsync(cancellationToken);
+
+        const string query = @"SELECT Id, TagName, ColorHex
+                               FROM Tags
+                               ORDER BY TagName";
+
+        await using var cmd = new SqlCommand(query, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            tags.Add(MapTag(reader));
+        }
+
+        return tags;
+    }
+
     public async Task<IReadOnlyList<Tag>> GetByTaskIdAsync(int taskId, CancellationToken cancellationToken = default)
     {
         var tags = new List<Tag>();

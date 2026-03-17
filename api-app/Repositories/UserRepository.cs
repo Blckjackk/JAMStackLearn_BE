@@ -54,6 +54,26 @@ public class UserRepository : IUserRepository
         return null;
     }
 
+    public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        await using var conn = _connection.GetConnection();
+        await conn.OpenAsync(cancellationToken);
+
+        const string query = "SELECT TOP 1 Id, Username, Email, PasswordHash FROM Users WHERE Email = @Email";
+
+        await using var cmd = new SqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@Email", email);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return MapUser(reader);
+        }
+
+        return null;
+    }
+
     public async Task<User> CreateAsync(User user, CancellationToken cancellationToken = default)
     {
         await using var conn = _connection.GetConnection();

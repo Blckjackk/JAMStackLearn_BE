@@ -49,6 +49,8 @@ public class TaskService : ITaskService
 
     public async Task<TaskResponseDto> CreateAsync(CreateTaskDto dto, CancellationToken cancellationToken = default)
     {
+        ValidateSingleTagSelection(dto.TagIds);
+
         if (string.IsNullOrWhiteSpace(dto.Title))
         {
             throw new ArgumentException("Task title is required.");
@@ -96,6 +98,11 @@ public class TaskService : ITaskService
 
     public async Task<bool> UpdateAsync(int id, UpdateTaskDto dto, CancellationToken cancellationToken = default)
     {
+        if (dto.TagIds is not null)
+        {
+            ValidateSingleTagSelection(dto.TagIds);
+        }
+
         var existingTask = await _taskRepository.GetByIdAsync(id, cancellationToken);
         if (existingTask is null)
         {
@@ -151,6 +158,14 @@ public class TaskService : ITaskService
     public Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         return _taskRepository.DeleteAsync(id, cancellationToken);
+    }
+
+    private static void ValidateSingleTagSelection(IReadOnlyCollection<int> tagIds)
+    {
+        if (tagIds.Count > 1)
+        {
+            throw new ArgumentException("Only one tag is allowed per task.");
+        }
     }
 
     private static TaskResponseDto MapTask(TaskItem task, IReadOnlyList<Tag> tags)

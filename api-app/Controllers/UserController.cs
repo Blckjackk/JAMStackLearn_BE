@@ -42,5 +42,19 @@ namespace api_app.Controllers
                 return BadRequest(ex.Message);
             }
         }
+
+        [HttpPost("login")]
+        public async Task<ActionResult<UserResponseDto>> Login([FromBody] LoginUserDto dto, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var user = await _userService.LoginAsync(dto, cancellationToken);
+                return user is null ? Unauthorized("Invalid email or password.") : Ok(user);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
     }
 }

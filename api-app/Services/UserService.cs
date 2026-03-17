@@ -57,6 +57,28 @@ public class UserService : IUserService
         return MapUser(created);
     }
 
+    public async Task<UserResponseDto?> LoginAsync(LoginUserDto dto, CancellationToken cancellationToken = default)
+    {
+        if (!IsValidEmail(dto.Email))
+        {
+            throw new ArgumentException("A valid email is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Password))
+        {
+            throw new ArgumentException("Password is required.");
+        }
+
+        var user = await _userRepository.GetByEmailAsync(dto.Email.Trim(), cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        var isPasswordValid = _passwordHasher.Verify(dto.Password, user.PasswordHash);
+        return isPasswordValid ? MapUser(user) : null;
+    }
+
     private static UserResponseDto MapUser(User user)
     {
         return new UserResponseDto

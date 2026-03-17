@@ -16,5 +16,6 @@ public class CreateTaskDto
 
     public DateTimeOffset? DueDate { get; set; }
 
+    [MaxLength(1, ErrorMessage = "Only one tag is allowed per task.")]
     public List<int> TagIds { get; set; } = [];
 }

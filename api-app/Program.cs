@@ -19,6 +19,7 @@ builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -40,6 +41,7 @@ builder.Services.AddCors(options =>
 
                   if (origin.Equals("http://localhost:3000", StringComparison.OrdinalIgnoreCase) ||
                   origin.Equals("http://localhost:4321", StringComparison.OrdinalIgnoreCase) ||
+                  origin.Equals("http://127.0.0.1:5500", StringComparison.OrdinalIgnoreCase) ||
                       origin.Equals("http://localhost:5173", StringComparison.OrdinalIgnoreCase))
                   {
                       return true;
