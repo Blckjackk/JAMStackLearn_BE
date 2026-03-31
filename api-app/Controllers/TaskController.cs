@@ -34,8 +34,18 @@ namespace api_app.Controllers
         {
             try
             {
-                var created = await _taskService.CreateAsync(dto, cancellationToken);
+                var actorUserId = GetActorUserId();
+                if (!actorUserId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var created = await _taskService.CreateAsync(dto, actorUserId.Value, cancellationToken);
                 return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
             }
             catch (ArgumentException ex)
             {
@@ -52,8 +62,18 @@ namespace api_app.Controllers
         {
             try
             {
-                var updated = await _taskService.UpdateAsync(id, dto, cancellationToken);
+                var actorUserId = GetActorUserId();
+                if (!actorUserId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var updated = await _taskService.UpdateAsync(id, dto, actorUserId.Value, cancellationToken);
                 return updated ? NoContent() : NotFound();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
             }
             catch (ArgumentException ex)
             {
@@ -66,6 +86,16 @@ namespace api_app.Controllers
         {
             var deleted = await _taskService.DeleteAsync(id, cancellationToken);
             return deleted ? NoContent() : NotFound();
+        }
+
+        private int? GetActorUserId()
+        {
+            if (!Request.Headers.TryGetValue("X-User-Id", out var value))
+            {
+                return null;
+            }
+
+            return int.TryParse(value.ToString(), out var userId) ? userId : null;
         }
     }
 }

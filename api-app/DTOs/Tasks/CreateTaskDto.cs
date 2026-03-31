@@ -7,12 +7,23 @@ public class CreateTaskDto
     [Required]
     public int ProjectId { get; set; }
 
+    public int? AssigneeUserId { get; set; }
+
     [Required]
     [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
 
+    [MaxLength(2000)]
+    public string? Description { get; set; }
+
     [MaxLength(4000)]
     public string? Content { get; set; }
+
+    [MaxLength(50)]
+    public string? Status { get; set; }
+
+    [MaxLength(50)]
+    public string? Priority { get; set; }
 
     public DateTimeOffset? DueDate { get; set; }
 

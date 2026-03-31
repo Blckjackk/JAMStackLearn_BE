@@ -21,8 +21,8 @@ public class TagService : ITagService
             .Select(tag => new TagDto
             {
                 Id = tag.Id,
-                TagName = tag.TagName,
-                ColorHex = tag.ColorHex
+                Name = tag.Name,
+                Color = tag.Color
             })
             .ToList();
     }

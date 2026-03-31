@@ -9,15 +9,18 @@ public class TaskService : ITaskService
 {
     private readonly ITaskRepository _taskRepository;
     private readonly IProjectRepository _projectRepository;
+    private readonly IProjectUserRepository _projectUserRepository;
     private readonly ITagRepository _tagRepository;
 
     public TaskService(
         ITaskRepository taskRepository,
         IProjectRepository projectRepository,
+        IProjectUserRepository projectUserRepository,
         ITagRepository tagRepository)
     {
         _taskRepository = taskRepository;
         _projectRepository = projectRepository;
+        _projectUserRepository = projectUserRepository;
         _tagRepository = tagRepository;
     }
 
@@ -47,7 +50,7 @@ public class TaskService : ITaskService
         return result;
     }
 
-    public async Task<TaskResponseDto> CreateAsync(CreateTaskDto dto, CancellationToken cancellationToken = default)
+    public async Task<TaskResponseDto> CreateAsync(CreateTaskDto dto, int actorUserId, CancellationToken cancellationToken = default)
     {
         ValidateSingleTagSelection(dto.TagIds);
 
@@ -67,6 +70,31 @@ public class TaskService : ITaskService
             throw new KeyNotFoundException("Project not found.");
         }
 
+        var actorMembership = await _projectUserRepository.GetByProjectAndUserAsync(dto.ProjectId, actorUserId, cancellationToken);
+        if (actorMembership is null)
+        {
+            throw new UnauthorizedAccessException("You are not a member of this project.");
+        }
+
+        if (!actorMembership.IsProjectManager)
+        {
+            throw new UnauthorizedAccessException("Only Project Manager can create tasks.");
+        }
+
+        if (dto.AssigneeUserId.HasValue)
+        {
+            if (!actorMembership.CanAssignTasks)
+            {
+                throw new UnauthorizedAccessException("Your role cannot assign tasks.");
+            }
+
+            var assigneeMembership = await _projectUserRepository.GetByProjectAndUserAsync(dto.ProjectId, dto.AssigneeUserId.Value, cancellationToken);
+            if (assigneeMembership is null)
+            {
+                throw new ArgumentException("Assignee must be a member of this project.");
+            }
+        }
+
         if (dto.TagIds.Count > 0)
         {
             var allTagsExist = await _tagRepository.ExistAllAsync(dto.TagIds, cancellationToken);
@@ -79,10 +107,16 @@ public class TaskService : ITaskService
         var task = new TaskItem
         {
             ProjectId = dto.ProjectId,
+            AssigneeUserId = dto.AssigneeUserId,
             Title = dto.Title.Trim(),
-            Content = dto.Content,
+            Description = NormalizeOptionalText(dto.Description, 2000, "Description"),
+            Content = NormalizeOptionalText(dto.Content, 4000, "Content"),
+            Status = NormalizeStatus(dto.Status),
+            Priority = NormalizePriority(dto.Priority),
             IsCompleted = false,
-            DueDate = dto.DueDate
+            DueDate = dto.DueDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         var created = await _taskRepository.CreateAsync(task, cancellationToken);
@@ -96,7 +130,7 @@ public class TaskService : ITaskService
         return MapTask(created, tags);
     }
 
-    public async Task<bool> UpdateAsync(int id, UpdateTaskDto dto, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(int id, UpdateTaskDto dto, int actorUserId, CancellationToken cancellationToken = default)
     {
         if (dto.TagIds is not null)
         {
@@ -107,6 +141,12 @@ public class TaskService : ITaskService
         if (existingTask is null)
         {
             return false;
+        }
+
+        var actorMembership = await _projectUserRepository.GetByProjectAndUserAsync(existingTask.ProjectId, actorUserId, cancellationToken);
+        if (actorMembership is null)
+        {
+            throw new UnauthorizedAccessException("You are not a member of this project.");
         }
 
         if (dto.Title is not null)
@@ -121,7 +161,12 @@ public class TaskService : ITaskService
 
         if (dto.Content is not null)
         {
-            existingTask.Content = dto.Content;
+            existingTask.Content = NormalizeOptionalText(dto.Content, 4000, "Content");
+        }
+
+        if (dto.Description is not null)
+        {
+            existingTask.Description = NormalizeOptionalText(dto.Description, 2000, "Description");
         }
 
         if (dto.IsCompleted.HasValue)
@@ -139,6 +184,33 @@ public class TaskService : ITaskService
             existingTask.DueDate = dto.DueDate;
         }
 
+        if (dto.Status is not null)
+        {
+            existingTask.Status = NormalizeRequiredValue(dto.Status, 50, "Status");
+        }
+
+        if (dto.Priority is not null)
+        {
+            existingTask.Priority = NormalizeRequiredValue(dto.Priority, 50, "Priority");
+        }
+
+        if (dto.AssigneeUserId.HasValue)
+        {
+            if (!actorMembership.CanAssignTasks)
+            {
+                throw new UnauthorizedAccessException("Your role cannot assign tasks.");
+            }
+
+            var assigneeMembership = await _projectUserRepository.GetByProjectAndUserAsync(existingTask.ProjectId, dto.AssigneeUserId.Value, cancellationToken);
+            if (assigneeMembership is null)
+            {
+                throw new ArgumentException("Assignee must be a member of this project.");
+            }
+
+            existingTask.AssigneeUserId = dto.AssigneeUserId;
+        }
+
+        existingTask.UpdatedAt = DateTime.UtcNow;
         var updated = await _taskRepository.UpdateAsync(existingTask, cancellationToken);
 
         if (updated && dto.TagIds is not null)
@@ -174,16 +246,61 @@ public class TaskService : ITaskService
         {
             Id = task.Id,
             ProjectId = task.ProjectId,
+            AssigneeUserId = task.AssigneeUserId,
             Title = task.Title,
+            Description = task.Description,
             Content = task.Content,
+            Status = task.Status,
+            Priority = task.Priority,
             IsCompleted = task.IsCompleted,
             DueDate = task.DueDate,
             Tags = tags.Select(tag => new TagDto
             {
                 Id = tag.Id,
-                TagName = tag.TagName,
-                ColorHex = tag.ColorHex
+                Name = tag.Name,
+                Color = tag.Color
             }).ToList()
         };
+    }
+
+    private static string NormalizeOptionalText(string? value, int maxLength, string fieldName)
+    {
+        var trimmed = value?.Trim() ?? string.Empty;
+        if (trimmed.Length > maxLength)
+        {
+            throw new ArgumentException($"{fieldName} max length is {maxLength} characters.");
+        }
+
+        return trimmed;
+    }
+
+    private static string NormalizeRequiredValue(string? value, int maxLength, string fieldName)
+    {
+        var trimmed = value?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            throw new ArgumentException($"{fieldName} is required.");
+        }
+
+        if (trimmed.Length > maxLength)
+        {
+            throw new ArgumentException($"{fieldName} max length is {maxLength} characters.");
+        }
+
+        return trimmed;
+    }
+
+    private static string NormalizeStatus(string? status)
+    {
+        return string.IsNullOrWhiteSpace(status)
+            ? "TODO"
+            : NormalizeRequiredValue(status, 50, "Status");
+    }
+
+    private static string NormalizePriority(string? priority)
+    {
+        return string.IsNullOrWhiteSpace(priority)
+            ? "Medium"
+            : NormalizeRequiredValue(priority, 50, "Priority");
     }
 }

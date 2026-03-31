@@ -20,7 +20,8 @@ namespace api_app.Repositories
             await using var conn = _connection.GetConnection();
             await conn.OpenAsync(cancellationToken);
 
-            const string query = @"SELECT Id, ProjectId, Title, Content, IsCompleted, DueDate
+            const string query = @"SELECT Id, ProjectId, AssigneeUserId, Title, Description, Content,
+                                          Status, Priority, IsCompleted, DueDate, CreatedAt, UpdatedAt
                                    FROM Tasks
                                    WHERE Id = @Id";
 
@@ -44,7 +45,8 @@ namespace api_app.Repositories
             await using var conn = _connection.GetConnection();
             await conn.OpenAsync(cancellationToken);
 
-            const string query = @"SELECT Id, ProjectId, Title, Content, IsCompleted, DueDate
+            const string query = @"SELECT Id, ProjectId, AssigneeUserId, Title, Description, Content,
+                                          Status, Priority, IsCompleted, DueDate, CreatedAt, UpdatedAt
                                    FROM Tasks
                                    WHERE ProjectId = @ProjectId";
 
@@ -66,17 +68,25 @@ namespace api_app.Repositories
             await using var conn = _connection.GetConnection();
             await conn.OpenAsync(cancellationToken);
 
-            const string query = @"INSERT INTO Tasks (ProjectId, Title, Content, IsCompleted, DueDate)
-                                   OUTPUT INSERTED.Id, INSERTED.ProjectId, INSERTED.Title, INSERTED.Content, INSERTED.IsCompleted, INSERTED.DueDate
-                                   VALUES (@ProjectId, @Title, @Content, @IsCompleted, @DueDate)";
+                 const string query = @"INSERT INTO Tasks (ProjectId, AssigneeUserId, Title, Description, Content, Status, Priority, IsCompleted, DueDate, CreatedAt, UpdatedAt)
+                            OUTPUT INSERTED.Id, INSERTED.ProjectId, INSERTED.AssigneeUserId, INSERTED.Title,
+                                INSERTED.Description, INSERTED.Content, INSERTED.Status, INSERTED.Priority,
+                                INSERTED.IsCompleted, INSERTED.DueDate, INSERTED.CreatedAt, INSERTED.UpdatedAt
+                            VALUES (@ProjectId, @AssigneeUserId, @Title, @Description, @Content, @Status, @Priority, @IsCompleted, @DueDate, @CreatedAt, @UpdatedAt)";
 
             await using var cmd = new SqlCommand(query, conn);
 
             cmd.Parameters.AddWithValue("@ProjectId", task.ProjectId);
+            cmd.Parameters.AddWithValue("@AssigneeUserId", (object?)task.AssigneeUserId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Title", task.Title);
-            cmd.Parameters.AddWithValue("@Content", (object?)task.Content ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Description", task.Description);
+            cmd.Parameters.AddWithValue("@Content", task.Content);
+            cmd.Parameters.AddWithValue("@Status", task.Status);
+            cmd.Parameters.AddWithValue("@Priority", task.Priority);
             cmd.Parameters.AddWithValue("@IsCompleted", task.IsCompleted);
             cmd.Parameters.AddWithValue("@DueDate", (object?)task.DueDate?.UtcDateTime ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedAt", task.CreatedAt);
+            cmd.Parameters.AddWithValue("@UpdatedAt", task.UpdatedAt);
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken))
@@ -93,19 +103,29 @@ namespace api_app.Repositories
             await conn.OpenAsync(cancellationToken);
 
             const string query = @"UPDATE Tasks
-                                   SET Title = @Title,
+                                   SET AssigneeUserId = @AssigneeUserId,
+                                       Title = @Title,
+                                       Description = @Description,
                                        Content = @Content,
+                                       Status = @Status,
+                                       Priority = @Priority,
                                        IsCompleted = @IsCompleted,
-                                       DueDate = @DueDate
+                                       DueDate = @DueDate,
+                                       UpdatedAt = @UpdatedAt
                                    WHERE Id = @Id";
 
             await using var cmd = new SqlCommand(query, conn);
 
             cmd.Parameters.AddWithValue("@Id", task.Id);
+            cmd.Parameters.AddWithValue("@AssigneeUserId", (object?)task.AssigneeUserId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Title", task.Title);
-            cmd.Parameters.AddWithValue("@Content", (object?)task.Content ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Description", task.Description);
+            cmd.Parameters.AddWithValue("@Content", task.Content);
+            cmd.Parameters.AddWithValue("@Status", task.Status);
+            cmd.Parameters.AddWithValue("@Priority", task.Priority);
             cmd.Parameters.AddWithValue("@IsCompleted", task.IsCompleted);
             cmd.Parameters.AddWithValue("@DueDate", (object?)task.DueDate?.UtcDateTime ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@UpdatedAt", task.UpdatedAt);
 
             var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
             return rows > 0;
@@ -131,10 +151,16 @@ namespace api_app.Repositories
             {
                 Id = (int)reader["Id"],
                 ProjectId = (int)reader["ProjectId"],
+                AssigneeUserId = reader["AssigneeUserId"] == DBNull.Value ? null : (int)reader["AssigneeUserId"],
                 Title = Convert.ToString(reader["Title"]) ?? string.Empty,
-                Content = reader["Content"] == DBNull.Value ? null : Convert.ToString(reader["Content"]),
+                Description = Convert.ToString(reader["Description"]) ?? string.Empty,
+                Content = Convert.ToString(reader["Content"]) ?? string.Empty,
+                Status = Convert.ToString(reader["Status"]) ?? "TODO",
+                Priority = Convert.ToString(reader["Priority"]) ?? "Medium",
                 IsCompleted = (bool)reader["IsCompleted"],
-                DueDate = MapDueDate(reader["DueDate"])
+                DueDate = MapDueDate(reader["DueDate"]),
+                CreatedAt = reader["CreatedAt"] == DBNull.Value ? DateTime.UtcNow : (DateTime)reader["CreatedAt"],
+                UpdatedAt = reader["UpdatedAt"] == DBNull.Value ? DateTime.UtcNow : (DateTime)reader["UpdatedAt"]
             };
         }
 

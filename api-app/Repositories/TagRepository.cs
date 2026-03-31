@@ -21,9 +21,9 @@ public class TagRepository : ITagRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = @"SELECT Id, TagName, ColorHex
+        const string query = @"SELECT Id, Name, Color
                                FROM Tags
-                               ORDER BY TagName";
+                       ORDER BY Name";
 
         await using var cmd = new SqlCommand(query, conn);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -43,7 +43,7 @@ public class TagRepository : ITagRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = @"SELECT t.Id, t.TagName, t.ColorHex
+        const string query = @"SELECT t.Id, t.Name, t.Color
                                FROM Tags t
                                INNER JOIN TaskTags tt ON tt.TagId = t.Id
                                WHERE tt.TaskId = @TaskId";
@@ -133,8 +133,8 @@ public class TagRepository : ITagRepository
         return new Tag
         {
             Id = (int)reader["Id"],
-            TagName = Convert.ToString(reader["TagName"]) ?? string.Empty,
-            ColorHex = Convert.ToString(reader["ColorHex"]) ?? "#3b82f6"
+            Name = Convert.ToString(reader["Name"]) ?? string.Empty,
+            Color = Convert.ToString(reader["Color"]) ?? "#3b82f6"
         };
     }
 }

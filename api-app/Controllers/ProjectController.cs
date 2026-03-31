@@ -34,7 +34,13 @@ namespace api_app.Controllers
         {
             try
             {
-                var created = await _projectService.CreateAsync(dto, cancellationToken);
+                var userId = GetActorUserId();
+                if (!userId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var created = await _projectService.CreateAsync(dto, userId.Value, cancellationToken);
                 return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
             }
             catch (ArgumentException ex)
@@ -66,6 +72,107 @@ namespace api_app.Controllers
         {
             var deleted = await _projectService.DeleteAsync(id, cancellationToken);
             return deleted ? NoContent() : NotFound();
+        }
+
+        [HttpGet("{projectId:int}/members")]
+        public async Task<ActionResult<IReadOnlyList<ProjectMemberDto>>> GetMembers(int projectId, CancellationToken cancellationToken)
+        {
+            var members = await _projectService.GetMembersAsync(projectId, cancellationToken);
+            return Ok(members);
+        }
+
+        [HttpPost("{projectId:int}/members")]
+        public async Task<ActionResult<ProjectMemberDto>> AddMember(int projectId, [FromBody] AddProjectMemberDto dto, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var actorUserId = GetActorUserId();
+                if (!actorUserId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var member = await _projectService.AddMemberAsync(projectId, actorUserId.Value, dto, cancellationToken);
+                return Ok(member);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ex.Message);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
+
+        [HttpPut("{projectId:int}/members/{userId:int}")]
+        public async Task<IActionResult> UpdateMemberRole(int projectId, int userId, [FromBody] UpdateProjectMemberRoleDto dto, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var actorUserId = GetActorUserId();
+                if (!actorUserId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var updated = await _projectService.UpdateMemberRoleAsync(projectId, userId, actorUserId.Value, dto, cancellationToken);
+                return updated ? NoContent() : NotFound();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ex.Message);
+            }
+        }
+
+        [HttpDelete("{projectId:int}/members/{userId:int}")]
+        public async Task<IActionResult> RemoveMember(int projectId, int userId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var actorUserId = GetActorUserId();
+                if (!actorUserId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var removed = await _projectService.RemoveMemberAsync(projectId, userId, actorUserId.Value, cancellationToken);
+                return removed ? NoContent() : NotFound();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ex.Message);
+            }
+        }
+
+        private int? GetActorUserId()
+        {
+            if (!Request.Headers.TryGetValue("X-User-Id", out var value))
+            {
+                return null;
+            }
+
+            return int.TryParse(value.ToString(), out var userId) ? userId : null;
         }
     }
 }

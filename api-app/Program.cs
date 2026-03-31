@@ -3,6 +3,7 @@ using api_app.Repositories;
 using api_app.Repositories.Interfaces;
 using api_app.Services;
 using api_app.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,8 +12,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddScoped<DbConnection>();
 
+// Register ApplicationDbContext
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+    ?? "Server=localhost\\SQLEXPRESS;Database=ListDB;Trusted_Connection=True;TrustServerCertificate=True;";
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString)
+);
+
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
+builder.Services.AddScoped<IProjectUserRepository, ProjectUserRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();
 
@@ -60,6 +69,35 @@ builder.Services.AddCors(options =>
     });
 });
 var app = builder.Build();
+
+var runDbFresh = args.Contains("--db:fresh", StringComparer.OrdinalIgnoreCase);
+var runDbSeed = args.Contains("--db:seed", StringComparer.OrdinalIgnoreCase);
+
+// Auto-apply migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    if (runDbFresh)
+    {
+        db.Database.EnsureDeleted();
+    }
+
+    db.Database.Migrate();
+
+    if (runDbFresh || runDbSeed)
+    {
+        DatabaseSeeder.SeedAsync(db).GetAwaiter().GetResult();
+    }
+}
+
+if (runDbFresh || runDbSeed)
+{
+    Console.WriteLine(runDbFresh
+        ? "Database fresh + seed selesai."
+        : "Database seed selesai.");
+    return;
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

@@ -3,15 +3,14 @@
     public class Project
     {
         public int Id { get; set; }
-        public int UserId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
 
-        public bool BelongsToUser(int userId)
-        {
-            return UserId == userId;
-        }
+        // Navigation
+        public List<ProjectUser> Members { get; set; } = [];
+        public List<TaskItem> Tasks { get; set; } = [];
 
         public int GetProjectAgeDays()
         {
@@ -21,6 +20,21 @@
         public string GetSummary()
         {
             return $"{Name} - Created {CreatedAt.ToShortDateString()}";
+        }
+
+        public bool HasMember(int userId)
+        {
+            return Members.Any(m => m.UserId == userId);
+        }
+
+        public ProjectUser? GetMember(int userId)
+        {
+            return Members.FirstOrDefault(m => m.UserId == userId);
+        }
+
+        public ProjectUser? GetOwner()
+        {
+            return Members.FirstOrDefault(m => m.IsProjectManager);
         }
     }
 }

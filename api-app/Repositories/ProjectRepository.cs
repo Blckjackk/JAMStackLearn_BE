@@ -19,7 +19,7 @@ public class ProjectRepository : IProjectRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = @"SELECT Id, UserId, Name, Description, CreatedAt
+        const string query = @"SELECT Id, Name, Description, CreatedAt, UpdatedAt
                                FROM Projects
                                WHERE Id = @Id";
 
@@ -42,9 +42,11 @@ public class ProjectRepository : IProjectRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = @"SELECT Id, UserId, Name, Description, CreatedAt
-                               FROM Projects
-                               WHERE UserId = @UserId";
+        const string query = @"SELECT p.Id, p.Name, p.Description, p.CreatedAt, p.UpdatedAt
+                               FROM Projects p
+                               INNER JOIN ProjectUsers pu ON p.Id = pu.ProjectId
+                               WHERE pu.UserId = @UserId
+                               ORDER BY p.CreatedAt DESC";
 
         await using var cmd = new SqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@UserId", userId);
@@ -58,20 +60,42 @@ public class ProjectRepository : IProjectRepository
         return projects;
     }
 
+    public async Task<IReadOnlyList<Project>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        var projects = new List<Project>();
+
+        await using var conn = _connection.GetConnection();
+        await conn.OpenAsync(cancellationToken);
+
+        const string query = @"SELECT Id, Name, Description, CreatedAt, UpdatedAt
+                               FROM Projects
+                               ORDER BY CreatedAt DESC";
+
+        await using var cmd = new SqlCommand(query, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            projects.Add(MapProject(reader));
+        }
+
+        return projects;
+    }
+
     public async Task<Project> CreateAsync(Project project, CancellationToken cancellationToken = default)
     {
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = @"INSERT INTO Projects (UserId, Name, Description, CreatedAt)
-                               OUTPUT INSERTED.Id, INSERTED.UserId, INSERTED.Name, INSERTED.Description, INSERTED.CreatedAt
-                               VALUES (@UserId, @Name, @Description, @CreatedAt)";
+        const string query = @"INSERT INTO Projects (Name, Description, CreatedAt, UpdatedAt)
+                               OUTPUT INSERTED.Id, INSERTED.Name, INSERTED.Description, INSERTED.CreatedAt, INSERTED.UpdatedAt
+                               VALUES (@Name, @Description, @CreatedAt, @UpdatedAt)";
 
         await using var cmd = new SqlCommand(query, conn);
-        cmd.Parameters.AddWithValue("@UserId", project.UserId);
         cmd.Parameters.AddWithValue("@Name", project.Name);
         cmd.Parameters.AddWithValue("@Description", project.Description);
         cmd.Parameters.AddWithValue("@CreatedAt", project.CreatedAt);
+        cmd.Parameters.AddWithValue("@UpdatedAt", project.UpdatedAt);
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
@@ -89,13 +113,15 @@ public class ProjectRepository : IProjectRepository
 
         const string query = @"UPDATE Projects
                                SET Name = @Name,
-                                   Description = @Description
+                                   Description = @Description,
+                                   UpdatedAt = @UpdatedAt
                                WHERE Id = @Id";
 
         await using var cmd = new SqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@Id", project.Id);
         cmd.Parameters.AddWithValue("@Name", project.Name);
         cmd.Parameters.AddWithValue("@Description", project.Description);
+        cmd.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
 
         var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
         return rows > 0;
@@ -106,8 +132,20 @@ public class ProjectRepository : IProjectRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = "DELETE FROM Projects WHERE Id = @Id";
+        // Delete related ProjectUsers first to maintain referential integrity
+        const string deleteProjectUsersQuery = "DELETE FROM ProjectUsers WHERE ProjectId = @Id";
+        await using var deleteUsersCmd = new SqlCommand(deleteProjectUsersQuery, conn);
+        deleteUsersCmd.Parameters.AddWithValue("@Id", id);
+        await deleteUsersCmd.ExecuteNonQueryAsync(cancellationToken);
 
+        // Delete related Tasks
+        const string deleteTasksQuery = "DELETE FROM Tasks WHERE ProjectId = @Id";
+        await using var deleteTasksCmd = new SqlCommand(deleteTasksQuery, conn);
+        deleteTasksCmd.Parameters.AddWithValue("@Id", id);
+        await deleteTasksCmd.ExecuteNonQueryAsync(cancellationToken);
+
+        // Delete project
+        const string query = "DELETE FROM Projects WHERE Id = @Id";
         await using var cmd = new SqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@Id", id);
 
@@ -134,10 +172,10 @@ public class ProjectRepository : IProjectRepository
         return new Project
         {
             Id = (int)reader["Id"],
-            UserId = (int)reader["UserId"],
             Name = Convert.ToString(reader["Name"]) ?? string.Empty,
             Description = Convert.ToString(reader["Description"]) ?? string.Empty,
-            CreatedAt = (DateTime)reader["CreatedAt"]
+            CreatedAt = (DateTime)reader["CreatedAt"],
+            UpdatedAt = (DateTime)reader["UpdatedAt"]
         };
     }
 }
