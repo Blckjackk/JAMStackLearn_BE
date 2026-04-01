@@ -194,7 +194,16 @@ public class TaskService : ITaskService
             existingTask.Priority = NormalizeRequiredValue(dto.Priority, 50, "Priority");
         }
 
-        if (dto.AssigneeUserId.HasValue)
+        if (dto.ClearAssignee == true)
+        {
+            if (!actorMembership.CanAssignTasks)
+            {
+                throw new UnauthorizedAccessException("Your role cannot assign tasks.");
+            }
+
+            existingTask.AssigneeUserId = null;
+        }
+        else if (dto.AssigneeUserId.HasValue)
         {
             if (!actorMembership.CanAssignTasks)
             {

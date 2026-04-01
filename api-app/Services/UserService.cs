@@ -79,13 +79,25 @@ public class UserService : IUserService
         return isPasswordValid ? MapUser(user) : null;
     }
 
+    public async Task<UserResponseDto?> UpdateProfileAsync(int userId, UpdateUserProfileDto dto, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Username))
+        {
+            throw new ArgumentException("Username is required.");
+        }
+
+        var updated = await _userRepository.UpdateProfileAsync(userId, dto.Username.Trim(), cancellationToken);
+        return updated is null ? null : MapUser(updated);
+    }
+
     private static UserResponseDto MapUser(User user)
     {
         return new UserResponseDto
         {
             Id = user.Id,
             Username = user.Username,
-            Email = user.Email
+            Email = user.Email,
+            UserCode = user.UserCode
         };
     }
 

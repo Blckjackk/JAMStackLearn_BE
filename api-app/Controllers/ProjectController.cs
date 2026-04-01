@@ -165,6 +165,115 @@ namespace api_app.Controllers
             }
         }
 
+        [HttpPost("{projectId:int}/invites")]
+        public async Task<ActionResult<ProjectInviteDto>> CreateInvite(int projectId, [FromBody] CreateProjectInviteDto dto, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var actorUserId = GetActorUserId();
+                if (!actorUserId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var invite = await _projectService.CreateInviteAsync(projectId, actorUserId.Value, dto, cancellationToken);
+                return Ok(invite);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ex.Message);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
+
+        [HttpGet("invites/pending")]
+        public async Task<ActionResult<IReadOnlyList<ProjectInviteDto>>> GetPendingInvites(CancellationToken cancellationToken)
+        {
+            var actorUserId = GetActorUserId();
+            if (!actorUserId.HasValue)
+            {
+                return BadRequest("Missing X-User-Id header.");
+            }
+
+            var invites = await _projectService.GetPendingInvitesAsync(actorUserId.Value, cancellationToken);
+            return Ok(invites);
+        }
+
+        [HttpPost("invites/{inviteId:int}/accept")]
+        public async Task<ActionResult<ProjectInviteDto>> AcceptInvite(int inviteId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var actorUserId = GetActorUserId();
+                if (!actorUserId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var invite = await _projectService.AcceptInviteAsync(inviteId, actorUserId.Value, cancellationToken);
+                return Ok(invite);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ex.Message);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
+
+        [HttpPost("invites/{inviteId:int}/reject")]
+        public async Task<ActionResult<ProjectInviteDto>> RejectInvite(int inviteId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var actorUserId = GetActorUserId();
+                if (!actorUserId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var invite = await _projectService.RejectInviteAsync(inviteId, actorUserId.Value, cancellationToken);
+                return Ok(invite);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ex.Message);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
+
         private int? GetActorUserId()
         {
             if (!Request.Headers.TryGetValue("X-User-Id", out var value))

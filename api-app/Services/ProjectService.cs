@@ -10,15 +10,18 @@ public class ProjectService : IProjectService
     private readonly IProjectRepository _projectRepository;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IProjectInviteRepository _projectInviteRepository;
 
     public ProjectService(
         IProjectRepository projectRepository,
         IProjectUserRepository projectUserRepository,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        IProjectInviteRepository projectInviteRepository)
     {
         _projectRepository = projectRepository;
         _projectUserRepository = projectUserRepository;
         _userRepository = userRepository;
+        _projectInviteRepository = projectInviteRepository;
     }
 
     public async Task<ProjectResponseDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -204,6 +207,125 @@ public class ProjectService : IProjectService
         return await _projectUserRepository.DeleteByProjectAndUserAsync(projectId, targetUserId, cancellationToken);
     }
 
+    public async Task<ProjectInviteDto> CreateInviteAsync(
+        int projectId,
+        int actorUserId,
+        CreateProjectInviteDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = await RequireProjectMembershipAsync(projectId, actorUserId, cancellationToken);
+        if (!actor.CanManageMembers)
+        {
+            throw new UnauthorizedAccessException("Only Project Manager can invite members.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.UserCode))
+        {
+            throw new ArgumentException("User code is required.");
+        }
+
+        var targetUser = await _userRepository.GetByUserCodeAsync(dto.UserCode.Trim(), cancellationToken);
+        if (targetUser is null)
+        {
+            throw new KeyNotFoundException("Target user not found.");
+        }
+
+        if (targetUser.Id == actorUserId)
+        {
+            throw new InvalidOperationException("You cannot invite yourself.");
+        }
+
+        var existingMember = await _projectUserRepository.GetByProjectAndUserAsync(projectId, targetUser.Id, cancellationToken);
+        if (existingMember is not null)
+        {
+            throw new InvalidOperationException("User is already a member of this project.");
+        }
+
+        var existingInvite = await _projectInviteRepository.GetPendingByProjectAndUserAsync(projectId, targetUser.Id, cancellationToken);
+        if (existingInvite is not null)
+        {
+            throw new InvalidOperationException("Invite already sent and pending.");
+        }
+
+        var role = NormalizeRole(dto.Role);
+        var invite = await _projectInviteRepository.CreateAsync(new ProjectInvite
+        {
+            ProjectId = projectId,
+            InvitedUserId = targetUser.Id,
+            InvitedByUserId = actorUserId,
+            Role = role,
+            Status = InviteStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        }, cancellationToken);
+
+        return MapInvite(invite);
+    }
+
+    public async Task<IReadOnlyList<ProjectInviteDto>> GetPendingInvitesAsync(int actorUserId, CancellationToken cancellationToken = default)
+    {
+        var invites = await _projectInviteRepository.GetPendingByUserIdAsync(actorUserId, cancellationToken);
+        return invites.Select(MapInvite).ToList();
+    }
+
+    public async Task<ProjectInviteDto> AcceptInviteAsync(int inviteId, int actorUserId, CancellationToken cancellationToken = default)
+    {
+        var invite = await _projectInviteRepository.GetByIdAsync(inviteId, cancellationToken);
+        if (invite is null)
+        {
+            throw new KeyNotFoundException("Invite not found.");
+        }
+
+        if (invite.InvitedUserId != actorUserId)
+        {
+            throw new UnauthorizedAccessException("You are not allowed to accept this invite.");
+        }
+
+        if (!string.Equals(invite.Status, InviteStatus.Pending, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Invite is no longer pending.");
+        }
+
+        var existingMember = await _projectUserRepository.GetByProjectAndUserAsync(invite.ProjectId, actorUserId, cancellationToken);
+        if (existingMember is null)
+        {
+            await _projectUserRepository.CreateAsync(new ProjectUser
+            {
+                ProjectId = invite.ProjectId,
+                UserId = actorUserId,
+                Role = invite.Role,
+                JoinedAt = DateTime.UtcNow
+            }, cancellationToken);
+        }
+
+        await _projectInviteRepository.UpdateStatusAsync(inviteId, InviteStatus.Accepted, cancellationToken);
+
+        var updated = await _projectInviteRepository.GetByIdAsync(inviteId, cancellationToken);
+        return MapInvite(updated ?? invite);
+    }
+
+    public async Task<ProjectInviteDto> RejectInviteAsync(int inviteId, int actorUserId, CancellationToken cancellationToken = default)
+    {
+        var invite = await _projectInviteRepository.GetByIdAsync(inviteId, cancellationToken);
+        if (invite is null)
+        {
+            throw new KeyNotFoundException("Invite not found.");
+        }
+
+        if (invite.InvitedUserId != actorUserId)
+        {
+            throw new UnauthorizedAccessException("You are not allowed to reject this invite.");
+        }
+
+        if (!string.Equals(invite.Status, InviteStatus.Pending, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Invite is no longer pending.");
+        }
+
+        await _projectInviteRepository.UpdateStatusAsync(inviteId, InviteStatus.Rejected, cancellationToken);
+        var updated = await _projectInviteRepository.GetByIdAsync(inviteId, cancellationToken);
+        return MapInvite(updated ?? invite);
+    }
+
     private async Task<ProjectUser> RequireProjectMembershipAsync(int projectId, int userId, CancellationToken cancellationToken)
     {
         var membership = await _projectUserRepository.GetByProjectAndUserAsync(projectId, userId, cancellationToken);
@@ -252,10 +374,28 @@ public class ProjectService : IProjectService
         return new ProjectMemberDto
         {
             UserId = member.UserId,
+            UserCode = member.User?.UserCode ?? string.Empty,
             Username = member.User?.Username ?? "Unknown",
             Email = member.User?.Email ?? "Unknown",
             Role = member.Role,
             JoinedAt = member.JoinedAt
+        };
+    }
+
+    private static ProjectInviteDto MapInvite(ProjectInvite invite)
+    {
+        return new ProjectInviteDto
+        {
+            Id = invite.Id,
+            ProjectId = invite.ProjectId,
+            ProjectName = invite.Project?.Name ?? string.Empty,
+            InvitedUserId = invite.InvitedUserId,
+            InvitedUserCode = invite.InvitedUser?.UserCode ?? string.Empty,
+            InvitedByUserId = invite.InvitedByUserId,
+            InvitedByUsername = invite.InvitedByUser?.Username ?? string.Empty,
+            Role = invite.Role,
+            Status = invite.Status,
+            CreatedAt = invite.CreatedAt
         };
     }
 }

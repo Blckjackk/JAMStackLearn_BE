@@ -20,7 +20,7 @@ public class ProjectUserRepository : IProjectUserRepository
         await conn.OpenAsync(cancellationToken);
 
         const string query = @"SELECT pu.Id, pu.ProjectId, pu.UserId, pu.Role, pu.JoinedAt,
-                          u.Username, u.Email
+                  u.Username, u.Email, u.UserCode
                        FROM ProjectUsers pu
                        LEFT JOIN Users u ON pu.UserId = u.Id
                                WHERE pu.Id = @Id";
@@ -43,7 +43,7 @@ public class ProjectUserRepository : IProjectUserRepository
         await conn.OpenAsync(cancellationToken);
 
         const string query = @"SELECT pu.Id, pu.ProjectId, pu.UserId, pu.Role, pu.JoinedAt,
-                          u.Username, u.Email
+                  u.Username, u.Email, u.UserCode
                        FROM ProjectUsers pu
                        LEFT JOIN Users u ON pu.UserId = u.Id
                                WHERE pu.ProjectId = @ProjectId AND pu.UserId = @UserId";
@@ -69,7 +69,7 @@ public class ProjectUserRepository : IProjectUserRepository
         await conn.OpenAsync(cancellationToken);
 
         const string query = @"SELECT pu.Id, pu.ProjectId, pu.UserId, pu.Role, pu.JoinedAt,
-                          u.Username, u.Email
+                  u.Username, u.Email, u.UserCode
                        FROM ProjectUsers pu
                        LEFT JOIN Users u ON pu.UserId = u.Id
                                WHERE pu.ProjectId = @ProjectId
@@ -95,7 +95,7 @@ public class ProjectUserRepository : IProjectUserRepository
         await conn.OpenAsync(cancellationToken);
 
         const string query = @"SELECT pu.Id, pu.ProjectId, pu.UserId, pu.Role, pu.JoinedAt,
-                          u.Username, u.Email
+                  u.Username, u.Email, u.UserCode
                        FROM ProjectUsers pu
                        LEFT JOIN Users u ON pu.UserId = u.Id
                                WHERE pu.UserId = @UserId
@@ -132,7 +132,7 @@ public class ProjectUserRepository : IProjectUserRepository
                        VALUES (@ProjectId, @UserId, @Role, @JoinedAt);
 
                        SELECT i.Id, i.ProjectId, i.UserId, i.Role, i.JoinedAt,
-                           u.Username, u.Email
+                           u.Username, u.Email, u.UserCode
                        FROM @Inserted i
                        LEFT JOIN Users u ON i.UserId = u.Id;";
 
@@ -210,7 +210,8 @@ public class ProjectUserRepository : IProjectUserRepository
             {
                 Id = (int)reader["UserId"],
                 Username = reader["Username"] == DBNull.Value ? string.Empty : Convert.ToString(reader["Username"]) ?? string.Empty,
-                Email = reader["Email"] == DBNull.Value ? string.Empty : Convert.ToString(reader["Email"]) ?? string.Empty
+                Email = reader["Email"] == DBNull.Value ? string.Empty : Convert.ToString(reader["Email"]) ?? string.Empty,
+                UserCode = reader["UserCode"] == DBNull.Value ? string.Empty : Convert.ToString(reader["UserCode"]) ?? string.Empty
             }
         };
     }

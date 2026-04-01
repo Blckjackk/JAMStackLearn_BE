@@ -56,5 +56,36 @@ namespace api_app.Controllers
                 return BadRequest(ex.Message);
             }
         }
+
+        [HttpPut("profile")]
+        [HttpPost("profile")]
+        public async Task<ActionResult<UserResponseDto>> UpdateProfile([FromBody] UpdateUserProfileDto dto, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var userId = GetActorUserId();
+                if (!userId.HasValue)
+                {
+                    return BadRequest("Missing X-User-Id header.");
+                }
+
+                var updated = await _userService.UpdateProfileAsync(userId.Value, dto, cancellationToken);
+                return updated is null ? NotFound("User not found.") : Ok(updated);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        private int? GetActorUserId()
+        {
+            if (!Request.Headers.TryGetValue("X-User-Id", out var value))
+            {
+                return null;
+            }
+
+            return int.TryParse(value.ToString(), out var userId) ? userId : null;
+        }
     }
 }

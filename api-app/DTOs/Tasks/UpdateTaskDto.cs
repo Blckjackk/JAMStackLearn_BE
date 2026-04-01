@@ -5,6 +5,7 @@ namespace api_app.DTOs.Tasks;
 public class UpdateTaskDto
 {
     public int? AssigneeUserId { get; set; }
+    public bool? ClearAssignee { get; set; }
 
     [MaxLength(200)]
     public string? Title { get; set; }
