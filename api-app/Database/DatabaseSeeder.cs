@@ -19,6 +19,7 @@ public static class DatabaseSeeder
             Username = "    admin",
             Email = "admin@mail.com",
             UserCode = "USR-ADMIN",
+            Role = "Admin",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
             CreatedAt = now
         };
@@ -28,6 +29,7 @@ public static class DatabaseSeeder
             Username = "member",
             Email = "member@mail.com",
             UserCode = "USR-MEMBER",
+            Role = "Developer",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("member123"),
             CreatedAt = now
         };

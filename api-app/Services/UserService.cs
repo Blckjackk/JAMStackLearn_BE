@@ -50,6 +50,7 @@ public class UserService : IUserService
         {
             Username = dto.Username.Trim(),
             Email = dto.Email.Trim(),
+            Role = "Developer",
             PasswordHash = _passwordHasher.Hash(dto.Password)
         };
 
@@ -97,7 +98,8 @@ public class UserService : IUserService
             Id = user.Id,
             Username = user.Username,
             Email = user.Email,
-            UserCode = user.UserCode
+            UserCode = user.UserCode,
+            Role = user.Role
         };
     }
 

@@ -21,7 +21,7 @@ public class UserRepository : IUserRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = "SELECT Id, Username, Email, UserCode, PasswordHash FROM Users";
+        const string query = "SELECT Id, Username, Email, UserCode, Role, PasswordHash FROM Users";
 
         await using var cmd = new SqlCommand(query, conn);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -39,7 +39,7 @@ public class UserRepository : IUserRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = "SELECT Id, Username, Email, UserCode, PasswordHash FROM Users WHERE Id = @Id";
+        const string query = "SELECT Id, Username, Email, UserCode, Role, PasswordHash FROM Users WHERE Id = @Id";
 
         await using var cmd = new SqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@Id", id);
@@ -59,7 +59,7 @@ public class UserRepository : IUserRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = "SELECT TOP 1 Id, Username, Email, UserCode, PasswordHash FROM Users WHERE Email = @Email";
+        const string query = "SELECT TOP 1 Id, Username, Email, UserCode, Role, PasswordHash FROM Users WHERE Email = @Email";
 
         await using var cmd = new SqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@Email", email);
@@ -79,7 +79,7 @@ public class UserRepository : IUserRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = @"SELECT u.Id, u.Username, u.Email, u.UserCode, u.PasswordHash
+        const string query = @"SELECT u.Id, u.Username, u.Email, u.UserCode, u.Role, u.PasswordHash
                                FROM Users u
                                INNER JOIN UserIdentities ui ON ui.UserId = u.Id
                                WHERE ui.Provider = @Provider AND ui.ProviderUserId = @ProviderUserId";
@@ -107,13 +107,14 @@ public class UserRepository : IUserRepository
                                  Username NVARCHAR(100),
                                  Email NVARCHAR(255),
                                  UserCode NVARCHAR(20),
+                                 Role NVARCHAR(20),
                                  PasswordHash NVARCHAR(200)
                              );
 
-                             INSERT INTO Users (Username, Email, UserCode, PasswordHash)
-                             OUTPUT INSERTED.Id, INSERTED.Username, INSERTED.Email, INSERTED.UserCode, INSERTED.PasswordHash
+                             INSERT INTO Users (Username, Email, UserCode, Role, PasswordHash)
+                             OUTPUT INSERTED.Id, INSERTED.Username, INSERTED.Email, INSERTED.UserCode, INSERTED.Role, INSERTED.PasswordHash
                              INTO @Inserted
-                             VALUES (@Username, @Email, @UserCode, @PasswordHash);
+                             VALUES (@Username, @Email, @UserCode, @Role, @PasswordHash);
 
                              UPDATE Users
                              SET UserCode = CASE
@@ -123,7 +124,7 @@ public class UserRepository : IUserRepository
                              END
                              WHERE Id IN (SELECT Id FROM @Inserted);
 
-                             SELECT u.Id, u.Username, u.Email, u.UserCode, u.PasswordHash
+                             SELECT u.Id, u.Username, u.Email, u.UserCode, u.Role, u.PasswordHash
                              FROM Users u
                              INNER JOIN @Inserted i ON u.Id = i.Id;";
 
@@ -132,6 +133,7 @@ public class UserRepository : IUserRepository
         cmd.Parameters.AddWithValue("@Username", user.Username);
         cmd.Parameters.AddWithValue("@Email", user.Email);
         cmd.Parameters.AddWithValue("@UserCode", string.IsNullOrWhiteSpace(user.UserCode) ? string.Empty : user.UserCode);
+        cmd.Parameters.AddWithValue("@Role", string.IsNullOrWhiteSpace(user.Role) ? "Developer" : user.Role);
         cmd.Parameters.AddWithValue("@PasswordHash", user.PasswordHash);
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -149,9 +151,9 @@ public class UserRepository : IUserRepository
         await conn.OpenAsync(cancellationToken);
 
         const string query = @"UPDATE Users
-                               SET Username = @Username
-                               OUTPUT INSERTED.Id, INSERTED.Username, INSERTED.Email, INSERTED.UserCode, INSERTED.PasswordHash
-                               WHERE Id = @Id";
+                       SET Username = @Username
+                       OUTPUT INSERTED.Id, INSERTED.Username, INSERTED.Email, INSERTED.UserCode, INSERTED.Role, INSERTED.PasswordHash
+                       WHERE Id = @Id";
 
         await using var cmd = new SqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@Id", userId);
@@ -219,6 +221,7 @@ END";
             Username = Convert.ToString(reader["Username"]) ?? string.Empty,
             Email = Convert.ToString(reader["Email"]) ?? string.Empty,
             UserCode = reader["UserCode"] == DBNull.Value ? string.Empty : Convert.ToString(reader["UserCode"]) ?? string.Empty,
+            Role = reader["Role"] == DBNull.Value ? "Developer" : Convert.ToString(reader["Role"]) ?? "Developer",
             PasswordHash = Convert.ToString(reader["PasswordHash"]) ?? string.Empty
         };
     }
@@ -228,7 +231,7 @@ END";
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = "SELECT TOP 1 Id, Username, Email, UserCode, PasswordHash FROM Users WHERE UserCode = @UserCode";
+        const string query = "SELECT TOP 1 Id, Username, Email, UserCode, Role, PasswordHash FROM Users WHERE UserCode = @UserCode";
 
         await using var cmd = new SqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@UserCode", userCode);

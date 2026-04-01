@@ -31,6 +31,7 @@ namespace api_app.Database
                 entity.Property(e => e.Username).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
                 entity.Property(e => e.UserCode).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Role).IsRequired().HasMaxLength(20).HasDefaultValue("Developer");
                 entity.Property(e => e.PasswordHash).IsRequired();
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
 

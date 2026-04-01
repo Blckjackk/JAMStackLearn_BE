@@ -68,6 +68,7 @@ public class FirebaseAuthService : IFirebaseAuthService
             {
                 Username = username,
                 Email = email,
+                Role = "Developer",
                 PasswordHash = _passwordHasher.Hash(Guid.NewGuid().ToString("N"))
             }, cancellationToken);
         }
@@ -86,7 +87,9 @@ public class FirebaseAuthService : IFirebaseAuthService
         {
             Id = user.Id,
             Username = user.Username,
-            Email = user.Email
+            Email = user.Email,
+            Role = user.Role,
+            UserCode = user.UserCode
         };
     }
 
