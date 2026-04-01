@@ -118,9 +118,23 @@ public class ProjectUserRepository : IProjectUserRepository
         await using var conn = _connection.GetConnection();
         await conn.OpenAsync(cancellationToken);
 
-        const string query = @"INSERT INTO ProjectUsers (ProjectId, UserId, Role, JoinedAt)
-                               OUTPUT INSERTED.Id, INSERTED.ProjectId, INSERTED.UserId, INSERTED.Role, INSERTED.JoinedAt
-                               VALUES (@ProjectId, @UserId, @Role, @JoinedAt)";
+         const string query = @"DECLARE @Inserted TABLE (
+                        Id INT,
+                        ProjectId INT,
+                        UserId INT,
+                        Role NVARCHAR(100),
+                        JoinedAt DATETIME2
+                       );
+
+                       INSERT INTO ProjectUsers (ProjectId, UserId, Role, JoinedAt)
+                       OUTPUT INSERTED.Id, INSERTED.ProjectId, INSERTED.UserId, INSERTED.Role, INSERTED.JoinedAt
+                       INTO @Inserted
+                       VALUES (@ProjectId, @UserId, @Role, @JoinedAt);
+
+                       SELECT i.Id, i.ProjectId, i.UserId, i.Role, i.JoinedAt,
+                           u.Username, u.Email
+                       FROM @Inserted i
+                       LEFT JOIN Users u ON i.UserId = u.Id;";
 
         await using var cmd = new SqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@ProjectId", projectUser.ProjectId);

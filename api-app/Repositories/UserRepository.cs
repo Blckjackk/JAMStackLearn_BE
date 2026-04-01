@@ -74,6 +74,29 @@ public class UserRepository : IUserRepository
         return null;
     }
 
+    public async Task<User?> GetByIdentityAsync(string provider, string providerUserId, CancellationToken cancellationToken = default)
+    {
+        await using var conn = _connection.GetConnection();
+        await conn.OpenAsync(cancellationToken);
+
+        const string query = @"SELECT u.Id, u.Username, u.Email, u.PasswordHash
+                               FROM Users u
+                               INNER JOIN UserIdentities ui ON ui.UserId = u.Id
+                               WHERE ui.Provider = @Provider AND ui.ProviderUserId = @ProviderUserId";
+
+        await using var cmd = new SqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@Provider", provider);
+        cmd.Parameters.AddWithValue("@ProviderUserId", providerUserId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return MapUser(reader);
+        }
+
+        return null;
+    }
+
     public async Task<User> CreateAsync(User user, CancellationToken cancellationToken = default)
     {
         await using var conn = _connection.GetConnection();
@@ -96,6 +119,37 @@ public class UserRepository : IUserRepository
         }
 
         return MapUser(reader);
+    }
+
+    public async Task UpsertIdentityAsync(UserIdentity identity, CancellationToken cancellationToken = default)
+    {
+        await using var conn = _connection.GetConnection();
+        await conn.OpenAsync(cancellationToken);
+
+        const string query = @"IF EXISTS (SELECT 1 FROM UserIdentities WHERE Provider = @Provider AND ProviderUserId = @ProviderUserId)
+BEGIN
+    UPDATE UserIdentities
+    SET UserId = @UserId,
+        Email = @Email,
+        DisplayName = @DisplayName,
+        AvatarUrl = @AvatarUrl
+    WHERE Provider = @Provider AND ProviderUserId = @ProviderUserId;
+END
+ELSE
+BEGIN
+    INSERT INTO UserIdentities (UserId, Provider, ProviderUserId, Email, DisplayName, AvatarUrl, CreatedAt)
+    VALUES (@UserId, @Provider, @ProviderUserId, @Email, @DisplayName, @AvatarUrl, GETUTCDATE());
+END";
+
+        await using var cmd = new SqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@UserId", identity.UserId);
+        cmd.Parameters.AddWithValue("@Provider", identity.Provider);
+        cmd.Parameters.AddWithValue("@ProviderUserId", identity.ProviderUserId);
+        cmd.Parameters.AddWithValue("@Email", (object?)identity.Email ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@DisplayName", (object?)identity.DisplayName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@AvatarUrl", (object?)identity.AvatarUrl ?? DBNull.Value);
+
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsAsync(int id, CancellationToken cancellationToken = default)

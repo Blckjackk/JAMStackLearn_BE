@@ -23,6 +23,9 @@ Thumbs.db
 # Environment files
 .env
 
+# Firebase service account keys
+*firebase-adminsdk*.json
+
 # Test results
 TestResults/
 

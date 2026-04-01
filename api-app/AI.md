@@ -31,6 +31,7 @@ Aturan penting:
 - Jangan expose model langsung ke API; gunakan DTO.
 - Jangan ubah struktur folder/pola tanpa alasan kuat.
 - Pastikan perubahan schema sinkron dengan repository SQL.
+- Gunakan Konsep OOP, agar bisa Reusable !!
 
 ## 4. Konvensi Wajib
 
@@ -49,7 +50,7 @@ Aturan penting:
 
 ## 6. Auth & Authorization
 
-- Login tetap sederhana (email + password) untuk sekarang.
+- Login menggunakan Google Authentication
 - Semua action mutating (create/update/delete) pakai header `X-User-Id`.
 - Role check (Project Manager, dll) tetap di Service.
 - Siapkan schema untuk social auth, tetapi jangan mengubah flow login saat ini.
