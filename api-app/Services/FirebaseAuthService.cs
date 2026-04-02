@@ -69,7 +69,8 @@ public class FirebaseAuthService : IFirebaseAuthService
                 Username = username,
                 Email = email,
                 Role = "Developer",
-                PasswordHash = _passwordHasher.Hash(Guid.NewGuid().ToString("N"))
+                PasswordHash = _passwordHasher.Hash(Guid.NewGuid().ToString("N")),
+                IsOtpVerified = false
             }, cancellationToken);
         }
 
@@ -89,7 +90,9 @@ public class FirebaseAuthService : IFirebaseAuthService
             Username = user.Username,
             Email = user.Email,
             Role = user.Role,
-            UserCode = user.UserCode
+            UserCode = user.UserCode,
+            PhoneNumber = user.PhoneNumber,
+            IsOtpVerified = user.IsOtpVerified
         };
     }
 

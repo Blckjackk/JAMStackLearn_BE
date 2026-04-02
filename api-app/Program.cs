@@ -49,6 +49,15 @@ builder.Services.AddHttpClient("Infobip", client =>
     }
 });
 
+builder.Services.AddHttpClient("Fontee", client =>
+{
+    var baseUrl = builder.Configuration["Fontee:BaseUrl"];
+    if (!string.IsNullOrWhiteSpace(baseUrl))
+    {
+        client.BaseAddress = new Uri(baseUrl);
+    }
+});
+
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];

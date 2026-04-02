@@ -99,7 +99,9 @@ public class UserService : IUserService
             Username = user.Username,
             Email = user.Email,
             UserCode = user.UserCode,
-            Role = user.Role
+            Role = user.Role,
+            PhoneNumber = user.PhoneNumber,
+            IsOtpVerified = user.IsOtpVerified
         };
     }
 

@@ -7,4 +7,6 @@ public class UserResponseDto
     public string Email { get; set; } = string.Empty;
     public string UserCode { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public string PhoneNumber { get; set; } = string.Empty;
+    public bool IsOtpVerified { get; set; }
 }

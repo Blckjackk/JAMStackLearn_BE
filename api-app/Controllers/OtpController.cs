@@ -1,6 +1,9 @@
 using api_app.DTOs.Otp;
+using api_app.DTOs.Users;
 using api_app.Services.Interfaces;
+using api_app.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Cryptography;
 
 namespace api_app.Controllers;
 
@@ -9,10 +12,12 @@ namespace api_app.Controllers;
 public class OtpController : ControllerBase
 {
     private readonly IOtpService _otpService;
+    private readonly IUserRepository _userRepository;
 
-    public OtpController(IOtpService otpService)
+    public OtpController(IOtpService otpService, IUserRepository userRepository)
     {
         _otpService = otpService;
+        _userRepository = userRepository;
     }
 
     [HttpPost("send")]
@@ -20,7 +25,8 @@ public class OtpController : ControllerBase
         [FromBody] OtpSendRequestDto dto,
         CancellationToken cancellationToken)
     {
-        await _otpService.SendOtpAsync(dto.PhoneNumber, cancellationToken);
+        var otpCode = GenerateOtpCode();
+        await _otpService.SendOtpAsync(dto.PhoneNumber, otpCode, cancellationToken);
 
         return Ok(new OtpSendResponseDto
         {
@@ -43,9 +49,53 @@ public class OtpController : ControllerBase
             });
         }
 
+        if (dto.UserId.HasValue)
+        {
+            var updated = await _userRepository.UpdateOtpVerificationAsync(
+                dto.UserId.Value,
+                dto.PhoneNumber,
+                true,
+                cancellationToken);
+
+            if (updated is null)
+            {
+                return NotFound(new OtpVerifyResponseDto
+                {
+                    Message = "User tidak ditemukan."
+                });
+            }
+
+            return Ok(new OtpVerifyResponseDto
+            {
+                Message = "OTP valid.",
+                User = MapUser(updated)
+            });
+        }
+
         return Ok(new OtpVerifyResponseDto
         {
             Message = "OTP valid."
         });
+    }
+
+    private static UserResponseDto MapUser(Models.User user)
+    {
+        return new UserResponseDto
+        {
+            Id = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            UserCode = user.UserCode,
+            Role = user.Role,
+            PhoneNumber = user.PhoneNumber,
+            IsOtpVerified = user.IsOtpVerified
+        };
+    }
+
+    private static string GenerateOtpCode()
+    {
+        const int otpLength = 6;
+        var number = RandomNumberGenerator.GetInt32(0, (int)Math.Pow(10, otpLength));
+        return number.ToString($"D{otpLength}");
     }
 }

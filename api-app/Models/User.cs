@@ -8,6 +8,8 @@
         public string UserCode { get; set; } = string.Empty;
         public string Role { get; set; } = "Developer";
         public string PasswordHash { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public bool IsOtpVerified { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation

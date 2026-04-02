@@ -7,6 +7,8 @@ public class OtpVerifyRequestDto
     [Required]
     public string PhoneNumber { get; set; } = string.Empty;
 
+    public int? UserId { get; set; }
+
     [Required]
     [MinLength(6)]
     [MaxLength(6)]

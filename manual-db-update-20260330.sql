@@ -11,6 +11,8 @@ CREATE TABLE dbo.Users (
     UserCode NVARCHAR(20) NOT NULL,
     Role NVARCHAR(20) NOT NULL CONSTRAINT DF_Users_Role DEFAULT ('Developer'),
     PasswordHash NVARCHAR(200) NOT NULL,
+    PhoneNumber NVARCHAR(20) NULL,
+    IsOtpVerified BIT NOT NULL CONSTRAINT DF_Users_IsOtpVerified DEFAULT (0),
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Users_CreatedAt DEFAULT (GETUTCDATE())
 );
 

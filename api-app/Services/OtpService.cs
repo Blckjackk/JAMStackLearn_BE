@@ -1,5 +1,6 @@
-using System.Net.Http.Json;
-using System.Security.Cryptography;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using api_app.Services.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -7,7 +8,6 @@ namespace api_app.Services;
 
 public class OtpService : IOtpService
 {
-    private const int OtpLength = 6;
     private static readonly TimeSpan OtpTtl = TimeSpan.FromMinutes(5);
 
     private readonly IHttpClientFactory _httpClientFactory;
@@ -24,39 +24,59 @@ public class OtpService : IOtpService
         _configuration = configuration;
     }
 
-    public async Task SendOtpAsync(string phoneNumber, CancellationToken cancellationToken = default)
+    public async Task SendOtpAsync(
+        string phoneNumber,
+        string otpCode,
+        CancellationToken cancellationToken = default)
     {
-        var apiKey = _configuration["Infobip:ApiKey"];
-        var sender = _configuration["Infobip:Sender"];
+        var apiKey = _configuration["Fontee:Token"];
+        var baseUrl = _configuration["Fontee:BaseUrl"];
 
-        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(sender))
+        if (string.IsNullOrWhiteSpace(apiKey)
+            || string.IsNullOrWhiteSpace(baseUrl))
         {
-            throw new InvalidOperationException("Infobip configuration is missing.");
+            throw new InvalidOperationException("Fontee configuration is missing.");
         }
 
-        var code = GenerateOtpCode();
+        var code = otpCode;
         var cacheKey = GetCacheKey(phoneNumber);
         _cache.Set(cacheKey, code, OtpTtl);
 
-        var client = _httpClientFactory.CreateClient("Infobip");
-        client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("App", apiKey);
+        var normalizedPhoneNumber = phoneNumber.StartsWith("+", StringComparison.Ordinal)
+            ? phoneNumber[1..]
+            : phoneNumber;
+        if (normalizedPhoneNumber.StartsWith("0", StringComparison.Ordinal))
+        {
+            normalizedPhoneNumber = $"62{normalizedPhoneNumber[1..]}";
+        }
+
+        var baseAddress = baseUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? baseUrl
+            : $"https://{baseUrl}";
+        var requestUri = new Uri(new Uri(baseAddress), "/send");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
+        request.Headers.Add("Authorization", apiKey);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         var payload = new
         {
-            from = sender,
-            to = phoneNumber,
-            message = new
-            {
-                text = $"Kode OTP kamu {code}. Berlaku 5 menit."
-            }
+            target = normalizedPhoneNumber,
+            message = $"Kode OTP kamu adalah: {code}",
+            countryCode = "62"
         };
 
-        using var response = await client.PostAsJsonAsync("/whatsapp/1/message/text", payload, cancellationToken);
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(payload),
+            Encoding.UTF8,
+            "application/json");
+
+        var client = _httpClientFactory.CreateClient("Fontee");
+        using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new InvalidOperationException($"Failed to send OTP: {response.StatusCode} {errorBody}");
+            throw new InvalidOperationException($"Fontee Error: {response.StatusCode} at {requestUri} - {errorBody}");
         }
     }
 
@@ -75,12 +95,6 @@ public class OtpService : IOtpService
 
         _cache.Remove(cacheKey);
         return Task.FromResult(true);
-    }
-
-    private static string GenerateOtpCode()
-    {
-        var number = RandomNumberGenerator.GetInt32(0, (int)Math.Pow(10, OtpLength));
-        return number.ToString($"D{OtpLength}");
     }
 
     private static string GetCacheKey(string phoneNumber) => $"otp:{phoneNumber}";
