@@ -13,6 +13,8 @@ obj/
 .idea/
 .vscode/
 
+api-app/firebase.json
+
 # Logs
 *.log
 
